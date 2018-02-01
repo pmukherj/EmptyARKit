@@ -18,8 +18,11 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate, PN
   @IBOutlet var button: UIButton!
   
   var shapesRendering: Bool = false
-  private var camManager: CameraManager? = nil;
+  var mapFound: Bool = false
 
+  private var camManager: CameraManager? = nil;
+  
+  private var PNAnchor: ARAnchor? = nil;
 
   
   @IBAction func clickButton(_ sender: Any) {
@@ -44,13 +47,13 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate, PN
     }*/
     
     if (!shapesRendering) {
-      shapesRendering = true
-      LibPlacenote.instance.loadMap(mapId: "4bd09919-a72f-4b01-911e-d88ebf8ec63a",
+      LibPlacenote.instance.loadMap(mapId: "b7402126-f18d-4495-92b3-aa0809d7e63a",
                                     downloadProgressCb: {(completed: Bool, faulted: Bool, percentage: Float) -> Void in
                                       //Nothing to do here if this is not a new phone })
                                       if (completed) {
                                         LibPlacenote.instance.startSession()
                                       }
+                                      self.shapesRendering = true
                                     })
     }
     
@@ -62,23 +65,31 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate, PN
     let geometryNode = SCNNode(geometry: geometry)
     geometryNode.position = SCNVector3(x:0.0, y:0.0, z:-0.3)
     sceneView.scene.rootNode.addChildNode(geometryNode)
+    
     print ("added sphere")
   }
 
   
   func onPose(_ outputPose: matrix_float4x4, _ arkitPose: matrix_float4x4) -> Void
   {
-    
+    //print ("Got pose")
+    if (mapFound) {
+      PNAnchor = ARAnchor(transform: arkitPose)
+      print ("PNAnchor:" + String(describing: PNAnchor?.identifier))
+      mapFound = false
+      sceneView.session.add(anchor: PNAnchor!)
+    }
     
   }
   
   func onStatusChange(_ prevStatus: LibPlacenote.MappingStatus, _ currStatus: LibPlacenote.MappingStatus) -> Void
   {
     if prevStatus != LibPlacenote.MappingStatus.running && currStatus == LibPlacenote.MappingStatus.running {
-        renderSphere()
-        sessionInfoLabel.text = "Map Found!"
+      mapFound = true
+      print ("map found")
     }
   }
+
   
     // MARK: - View Life Cycle
 	
@@ -118,9 +129,9 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate, PN
         // Show debug UI to view performance metrics (e.g. frames per second).
         sceneView.showsStatistics = true
       
-        if let camera: SCNNode = sceneView?.pointOfView {
+        /*if let camera: SCNNode = sceneView?.pointOfView {
           camManager = CameraManager(scene: sceneView.scene, cam: camera)
-        }
+        }*/
       
         sceneView.autoenablesDefaultLighting = true
 
@@ -139,6 +150,19 @@ class ViewController: UIViewController, ARSCNViewDelegate, ARSessionDelegate, PN
     /// - Tag: PlaceARContent
 	func renderer(_ renderer: SCNSceneRenderer, didAdd node: SCNNode, for anchor: ARAnchor) {
         // Place content only for anchors found by plane detection.
+    
+    
+    
+        if (PNAnchor?.identifier == anchor.identifier) {
+          print ("PNAnchor rxd:" + String(describing: anchor.identifier))
+          let geometry:SCNGeometry = SCNSphere(radius: 0.08)
+          geometry.materials.first?.diffuse.contents = "PlanetTexture.jpg"
+          let geometryNode = SCNNode(geometry: geometry)
+          geometryNode.position = SCNVector3Make(0.0, 0.0, -0.3)
+          node.addChildNode(geometryNode)
+        }
+    
+    
         guard let planeAnchor = anchor as? ARPlaneAnchor else { return }
 
         // Create a SceneKit plane to visualize the plane anchor using its position and extent.
